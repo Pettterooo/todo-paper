@@ -572,7 +572,9 @@ final class OutlineTextView: NSTextView {
         guard let line = fragment.textLineFragments.first, line.characterRange.length > 0 else {
             return fragment.layoutFragmentFrame.height / 2
         }
-        let baseline = line.locationForCharacter(at: 0).y
+        // locationForCharacter 的基线相对行自身排版原点；第二段起 fragment
+        // 顶部还含段距/行距，必须加 typographicBounds.minY 才与字形对齐
+        let baseline = line.locationForCharacter(at: 0).y + line.typographicBounds.minY
         let font = line.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
             ?? .systemFont(ofSize: 14)
         return baseline - font.capHeight / 2
