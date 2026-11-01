@@ -80,10 +80,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
-    /// A Dock click with no window open opens a fresh untitled document
-    /// instead of the default Open panel.
+    /// A Dock click with no window open reopens the last document; only when
+    /// there is none does it fall back to a fresh untitled document.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         guard !flag else { return true }
+        if let path = UserDefaults.standard.string(forKey: "LastDocumentPath"),
+           FileManager.default.fileExists(atPath: path) {
+            NSDocumentController.shared.openDocument(withContentsOf: URL(fileURLWithPath: path),
+                                                     display: true) { _, _, _ in }
+            return false
+        }
         if NSApp.sendAction(Selector(("newDocument:")), to: nil, from: nil) {
             return false
         }
