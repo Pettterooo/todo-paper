@@ -25,7 +25,9 @@ struct OutlineEditor: NSViewRepresentable {
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = NSView.AutoresizingMask.width
         textView.drawsBackground = false
-        textView.textContainerInset = NSSize(width: 0, height: 20)
+        // +4.76 because line spacing is also applied above the first line,
+        // which would otherwise pull the whole document up.
+        textView.textContainerInset = NSSize(width: 0, height: 25)
 
         textView.string = model.text
         textView.configure(model: model)
@@ -128,8 +130,13 @@ final class OutlineTextView: NSTextView {
     private let textLeftInset: CGFloat = 32
 
     private var baseAttributes: [NSAttributedString.Key: Any] {
+        // Leading is expressed as lineSpacing, not lineHeightMultiple: TextKit 2
+        // draws the insertion point over the whole line fragment, so an inflated
+        // line box makes the caret taller than the text. 17pt line + 4.76pt
+        // spacing is the same 1.28 rhythm as before, but the fragment now ends
+        // where the text does.
         let paragraph = NSMutableParagraphStyle()
-        paragraph.lineHeightMultiple = 1.28
+        paragraph.lineSpacing = 4.76
         paragraph.paragraphSpacing = 2
         paragraph.firstLineHeadIndent = textLeftInset
         paragraph.headIndent = textLeftInset

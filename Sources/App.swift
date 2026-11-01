@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 /// Registered before any document is restored: SwiftUI DocumentGroup restores
 /// windows *before* applicationDidFinishLaunching runs, so defaults must be
@@ -23,6 +24,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = registeredDefaults
         NSApp.setActivationPolicy(.regular)
+        // 系统每次调用都会弹确认框，只在首次启动登记一次
+        if !UserDefaults.standard.bool(forKey: "BDidRegisterFileAssociation") {
+            UserDefaults.standard.set(true, forKey: "BDidRegisterFileAssociation")
+            NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL,
+                                                     toOpen: UTType(exportedAs: "com.taskpaper.text"))
+        }
 
         // Remember whichever document window was last active, so the next
         // launch can reopen it. Untitled windows have no representedURL.
@@ -33,7 +40,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             UserDefaults.standard.set(url.path, forKey: "LastDocumentPath")
         }
 
-        reopenLastDocumentIfNeeded()
+        if UserDefaults.standard.bool(forKey: "BHasOpenedTutorial") {
+            reopenLastDocumentIfNeeded()
+        } else {
+            UserDefaults.standard.set(true, forKey: "BHasOpenedTutorial")
+            openTutorial()
+        }
+    }
+
+    /// First launch opens a real, editable tutorial document seeded from the
+    /// bundled Welcome.txt instead of an empty untitled window.
+    private func openTutorial() {
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let url = dir.appendingPathComponent("教程.taskpaper")
+        if !FileManager.default.fileExists(atPath: url.path),
+           let welcome = Bundle.main.url(forResource: "Welcome", withExtension: "txt"),
+           let text = try? String(contentsOf: welcome, encoding: .utf8) {
+            try? text.write(to: url, atomically: true, encoding: .utf8)
+        }
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
     }
 
     /// Reopens the document that was active at the last quit when the
@@ -101,6 +127,9 @@ struct ContentView: View {
     }
 
     var body: some View {
+        // Let NavigationSplitView own the sidebar toggle. Re-implementing it as a
+        // toolbar item inside the sidebar column makes SwiftUI tear the item down
+        // and rebuild it whenever the column collapses, which flashes the button.
         NavigationSplitView {
             SidebarView(doc: doc, selection: $selection)
                 .navigationSplitViewColumnWidth(min: 190, ideal: 215, max: 280)
@@ -147,6 +176,7 @@ struct ContentView: View {
                     .help("删除选中的行")
                 }
             }
+            .sharedBackgroundVisibility(.hidden)
         }
         .onChange(of: document.text) { _, newText in
             if newText != doc.text { doc.replaceText(with: newText) }
@@ -155,6 +185,9 @@ struct ContentView: View {
             if let fileURL {
                 UserDefaults.standard.set(fileURL.path, forKey: "LastDocumentPath")
             }
+            // Drops the glass capsule around the system sidebar toggle.
+            SidebarToggleChrome.install()
+            DispatchQueue.main.async { SidebarToggleChrome.install() }
         }
     }
 }
